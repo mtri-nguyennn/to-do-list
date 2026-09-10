@@ -3,3 +3,6 @@
 .data/
 .vercel/
 node_modules/
+.firebase/
+*-debug.log
+*-debug.log.*

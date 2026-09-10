@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function owner(uid) {
+   return request.auth != null && request.auth.uid == uid && request.auth.token.email_verified == true;
+  }
+  function validCourse(d) {
+   return d.keys().hasAll(['name','description','color','deleting','created_at'])
+    && d.keys().hasOnly(['name','description','color','deleting','created_at'])
+    && d.name is string && d.name.size() > 0 && d.name.size() <= 80
+    && d.description is string && d.description.size() <= 160
+    && d.color in ['blue','purple','orange','green','pink']
+    && d.deleting is bool && d.created_at is timestamp;
+  }
+  function validTask(d) {
+   return d.keys().hasAll(['course_id','title','done','due_date','created_at'])
+    && d.keys().hasOnly(['course_id','title','done','due_date','created_at'])
+    && d.course_id is string && d.course_id.matches('^[A-Za-z0-9_-]+$')
+    && d.title is string && d.title.size() > 0 && d.title.size() <= 300
+    && d.done is bool && d.created_at is timestamp
+    && d.due_date is string && (d.due_date == '' || d.due_date.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'));
+  }
+  match /users/{uid}/courses/{courseId} {
+   allow read: if owner(uid);
+   allow create: if owner(uid) && validCourse(request.resource.data)
+    && request.resource.data.deleting == false && request.resource.data.created_at == request.time;
+   allow update: if owner(uid) && validCourse(request.resource.data)
+    && request.resource.data.created_at == resource.data.created_at
+    && (!resource.data.deleting || request.resource.data.deleting);
+   allow delete: if owner(uid) && resource.data.deleting;
+  }
+  match /users/{uid}/tasks/{taskId} {
+   function activeCourse(courseId) {
+    return exists(/databases/$(database)/documents/users/$(uid)/courses/$(courseId))
+      && getAfter(/databases/$(database)/documents/users/$(uid)/courses/$(courseId)).data.deleting == false;
+   }
+   allow read, delete: if owner(uid);
+   allow create: if owner(uid) && validTask(request.resource.data)
+    && request.resource.data.created_at == request.time && activeCourse(request.resource.data.course_id);
+   allow update: if owner(uid) && validTask(request.resource.data)
+    && request.resource.data.course_id == resource.data.course_id
+    && request.resource.data.created_at == resource.data.created_at && activeCourse(resource.data.course_id);
+  }
+ }
+}
