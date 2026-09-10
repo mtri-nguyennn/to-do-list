@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, browserSessionPersistence, setPersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, signOut, onAuthStateChanged, reload, getIdToken } from 'firebase/auth';
-import { getFirestore, collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, query, where, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, query, where, serverTimestamp } from 'firebase/firestore/lite';
 import { text, deadline } from './validation.js';
 const config = __FIREBASE_CONFIG__;
 export let configured=Boolean(config.apiKey&&config.authDomain&&config.projectId&&config.appId);
@@ -25,6 +25,7 @@ export async function loadWorkspace(){
 }
 export async function mutate(body){
  const uid=owner();
+ if(typeof navigator !== 'undefined' && navigator.onLine === false) throw Error('You are offline. Reconnect before saving.');
  switch(body.action){
  case 'createCourse': {
   const color=['blue','purple','orange','green','pink'].includes(body.color)?body.color:'blue';

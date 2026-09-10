@@ -1,3 +1,4 @@
+import { saveForm } from './save-form.js';
 import { configured, currentUser, watchAuth, login, signup, logout, resend, resetPassword, checkVerification, loadWorkspace, mutate, friendlyError } from './store.js';
 import { deadlineLabel, today } from './validation.js';
 const $=s=>document.querySelector(s);
@@ -40,7 +41,7 @@ function render(){
  return `<article class="course-card ${esc(c.color)}"><div class="card-heading"><div class="course-symbol">▤</div><div class="course-title"><h2>${esc(c.name)}</h2>${c.description?`<p>${esc(c.description)}</p>`:''}</div><button class="icon" data-edit-course="${c.id}" aria-label="Rename ${esc(c.name)}" ${c.deleting?'disabled':''}>✎</button><button class="icon" data-delete-course="${c.id}" aria-label="Delete ${esc(c.name)}">×</button></div><div class="course-progress"><span>${done}/${tasks.length} completed</span></div><progress value="${done}" max="${tasks.length||1}" aria-label="${esc(c.name)} progress"></progress>${c.deleting?'<p class="form-error">Deletion incomplete. Click × to finish deleting this course.</p>':`<div class="task-list">${tasks.length?tasks.map(t=>`<div class="task ${t.done?'done':''}"><input type="checkbox" data-toggle="${t.id}" aria-label="Complete ${esc(t.title)}" ${t.done?'checked':''}><div class="task-text"><span>${esc(t.title)}</span><button class="deadline ${t.due_date&&!t.done&&t.due_date<today()?'overdue':''}" data-edit-task="${t.id}" aria-label="Edit deadline for ${esc(t.title)}"><span>Deadline</span> ${esc(deadlineLabel(t.due_date,t.done))}</button></div><button class="icon" data-edit-task="${t.id}" aria-label="Edit ${esc(t.title)}">✎</button><button class="icon" data-delete-task="${t.id}" aria-label="Delete ${esc(t.title)}">×</button></div>`).join(''):'<p class="no-tasks">No tasks</p>'}</div><form class="task-form" data-course="${c.id}"><input name="title" placeholder="Add a subtask" aria-label="New subtask for ${esc(c.name)}" maxlength="300" required><div class="task-form-bottom"><label>Deadline <span>(optional)</span><input type="date" name="due_date" min="1900-01-01" max="9999-12-31"></label><button type="submit" class="small-button">＋ Add task</button></div><p class="form-error" role="alert"></p></form>`}</article>`;
  }).join('')||'<div class="empty"><h2>No courses yet</h2><button class="primary" id="empty-add">＋ Add course</button></div>';
 }
-function openCourse(){$('#course-form').reset();$('#course-form .form-error').textContent='';$('#course-dialog').showModal();}
+function openCourse(){if(busy){showError(Error('A change is still saving. Please wait.'));return;}$('#course-form').reset();$('#course-form .form-error').textContent='';$('#course-dialog').showModal();}
 for(const id of ['#new-course','#add-course','#sidebar-add'])$(id).onclick=openCourse;
 $('#overview').onclick=()=>{selected=null;render();};
 $('#refresh').onclick=()=>refresh();
@@ -55,6 +56,7 @@ document.addEventListener('click',e=>{
  if(b.classList.contains('close-dialog'))b.closest('dialog').close();
  if(b.id==='empty-add')openCourse();
  if(b.dataset.select){selected=b.dataset.select;render();}
+ if(busy && (b.dataset.editCourse||b.dataset.editTask||b.dataset.deleteCourse||b.dataset.deleteTask)){showError(Error('A change is still saving. Please wait.'));return;}
  for(const kind of ['Course','Task']){
   const id=b.dataset['edit'+kind];if(id){const item=state[kind==='Course'?'courses':'tasks'].find(x=>x.id===id);if(!item)return;editing={action:kind==='Course'?'renameCourse':'editTask',id};$('#edit-heading').textContent=kind==='Course'?'Rename course':'Edit task';$('#edit-form [name=name]').value=item.name||item.title;$('#edit-form [name=name]').maxLength=kind==='Course'?80:300;$('#edit-deadline-label').hidden=kind==='Course';$('#edit-form [name=due_date]').value=item.due_date||'';$('#edit-form .form-error').textContent='';$('#edit-dialog').showModal();}
   const idToDelete=b.dataset['delete'+kind];if(idToDelete){deleting={action:'delete'+kind,id:idToDelete};$('#delete-message').textContent=kind==='Course'?'Delete this course and all its tasks? This cannot be undone.':'Delete this task? This cannot be undone.';$('#delete-form .form-error').textContent='';$('#delete-dialog').showModal();}
@@ -72,11 +74,12 @@ document.addEventListener('submit',async e=>{
    else await login(fields.email,fields.password);
    return;
   }
-  if(form.id==='course-form')await save({action:'createCourse',...fields});
-  else if(form.classList.contains('task-form'))await save({action:'createTask',course_id:form.dataset.course,...fields});
-  else if(form.id==='edit-form')await save({...editing,[editing.action==='renameCourse'?'name':'title']:fields.name,due_date:fields.due_date});
-  else if(form.id==='delete-form')await save(deleting);
-  form.reset();form.closest('dialog')?.close();await refresh();
+  await saveForm({form,button,message:msg,save:async()=>{
+   if(form.id==='course-form')await save({action:'createCourse',...fields});
+   else if(form.classList.contains('task-form'))await save({action:'createTask',course_id:form.dataset.course,...fields});
+   else if(form.id==='edit-form')await save({...editing,[editing.action==='renameCourse'?'name':'title']:fields.name,due_date:fields.due_date});
+   else if(form.id==='delete-form')await save(deleting);
+  },refresh});
  }catch(err){msg.textContent=friendlyError(err);if(form.id==='auth-form')authStatus(friendlyError(err),true);}finally{button.disabled=false;}
 });
 if(configured){watchAuth(user=>{authChanged(user).catch(e=>authStatus(friendlyError(e),true));});}

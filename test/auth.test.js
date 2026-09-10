@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, createUserWithEmailAndPassword, sendEmailVerification, applyActionCode, reload, getIdToken, signOut, signInWithEmailAndPassword, sendPasswordResetEmail, confirmPasswordReset } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator, doc, setDoc, getDoc, serverTimestamp, terminate } from 'firebase/firestore';
+import { getFirestore, connectFirestoreEmulator, doc, setDoc, getDoc, serverTimestamp, terminate } from 'firebase/firestore/lite';
 
 test('signup, verification gate, persistent account data, sign-in and password reset',async()=>{
  const app=initializeApp({apiKey:'demo-api-key',projectId:'demo-coursework'},'auth-integration');
